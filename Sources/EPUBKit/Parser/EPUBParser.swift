@@ -6,8 +6,8 @@
 //  Copyright © 2017 Witek Bobrowski. All rights reserved.
 //
 
-import Foundation
 import AEXML
+import Foundation
 
 /// The main parser class responsible for parsing EPUB documents.
 ///
@@ -37,16 +37,16 @@ public final class EPUBParser: EPUBParserProtocol {
 
     /// Service for handling EPUB archive extraction.
     private let archiveService: EPUBArchiveService
-    
+
     /// Parser for spine element and reading order.
     private let spineParser: EPUBSpineParser
-    
+
     /// Parser for Dublin Core metadata elements.
     private let metadataParser: EPUBMetadataParser
-    
+
     /// Parser for manifest items and resources.
     private let manifestParser: EPUBManifestParser
-    
+
     /// Parser for NCX table of contents.
     private let tableOfContentsParser: EPUBTableOfContentsParser
 
@@ -80,21 +80,25 @@ public final class EPUBParser: EPUBParserProtocol {
         var manifest: EPUBManifest
         var spine: EPUBSpine
         var tableOfContents: EPUBTableOfContents
-        
+
         // Notify delegate that parsing has begun
         delegate?.parser(self, didBeginParsingDocumentAt: path)
-        
+
         do {
             // STEP 1: Handle both .epub files and pre-extracted directories
             // This flexibility allows the parser to work with both compressed archives
             // and directories that have already been extracted, which is useful for testing
             // and scenarios where the EPUB content is already available as files
             var isDirectory: ObjCBool = false
-            FileManager.default.fileExists(atPath: path.path, isDirectory: &isDirectory)
-            
+            FileManager.default.fileExists(
+                atPath: path.path,
+                isDirectory: &isDirectory
+            )
+
             // Extract archive if it's a .epub file, otherwise use the directory directly
             // This design pattern allows the same parsing logic to work with both formats
-            directory = isDirectory.boolValue ? path : try unzip(archiveAt: path)
+            directory =
+                isDirectory.boolValue ? path : try unzip(archiveAt: path)
             delegate?.parser(self, didUnzipArchiveTo: directory)
 
             // STEP 2: Initialize content service - this is where the OCF container parsing happens
@@ -121,10 +125,39 @@ public final class EPUBParser: EPUBParserProtocol {
             // The spine's 'toc' attribute references a manifest item ID
             // We use this to find the actual NCX file path in the manifest
             // This two-step lookup is required by the EPUB specification
-            guard let toc = spine.toc, let fileName = manifest.items[toc]?.path else {
+
+            var tocPath: String?
+
+            // 1. 优先尝试 EPUB 3: 在 Manifest 中查找 properties 包含 "nav" 的 item
+            // 注意：manifest.items 是 [String: EPUBManifestItem]。
+            // 假设 EPUBManifestItem 有 properties 字段，或者我们需要遍历查找。
+            // 由于我看不到 EPUBManifestItem 的定义，这里使用遍历 values 的方式。
+            if let navItem = manifest.items.values.first(where: { item in
+                // 检查 properties 属性 (需要在 EPUBManifestParser/Item 中确保解析了这个属性)
+                // 如果 manifest item 没有 properties 属性，这里需要依赖 spine.toc
+                return item.id.contains("nav") == true
+            }) {
+                tocPath = navItem.path
+            }
+
+            // 2. 回退到 EPUB 2: 使用 spine 的 toc 属性查找 NCX
+            if tocPath == nil {
+                if let tocID = spine.toc, let item = manifest.items[tocID] {
+                    tocPath = item.path
+                }
+            }
+
+            // 3. 校验是否找到
+            guard let finalTocPath = tocPath else {
                 throw EPUBParserError.tableOfContentsMissing
             }
-            let tableOfContentsElement = try contentService.tableOfContents(fileName)
+//            guard let toc = spine.toc, let fileName = manifest.items[toc]?.path
+//            else {
+//                throw EPUBParserError.tableOfContentsMissing
+//            }
+            let tableOfContentsElement = try contentService.tableOfContents(
+                finalTocPath
+            )
 
             tableOfContents = getTableOfContents(from: tableOfContentsElement)
             delegate?.parser(self, didFinishParsing: tableOfContents)
@@ -134,14 +167,19 @@ public final class EPUBParser: EPUBParserProtocol {
             delegate?.parser(self, didFailParsingDocumentAt: path, with: error)
             throw error
         }
-        
+
         // Notify delegate of successful completion
         delegate?.parser(self, didFinishParsingDocumentAt: path)
-        
+
         // Create and return the complete document with all parsed components
-        return EPUBDocument(directory: directory, contentDirectory: contentDirectory,
-                            metadata: metadata, manifest: manifest,
-                            spine: spine, tableOfContents: tableOfContents)
+        return EPUBDocument(
+            directory: directory,
+            contentDirectory: contentDirectory,
+            metadata: metadata,
+            manifest: manifest,
+            spine: spine,
+            tableOfContents: tableOfContents
+        )
     }
 
 }
@@ -218,7 +256,9 @@ extension EPUBParser: EPUBParsable {
     ///
     /// - Parameter xmlElement: The root ncx XML element from the navigation document
     /// - Returns: Hierarchical EPUBTableOfContents structure with recursive navigation points
-    public func getTableOfContents(from xmlElement: XMLElement) -> EPUBTableOfContents {
+    public func getTableOfContents(from xmlElement: XMLElement)
+        -> EPUBTableOfContents
+    {
         // Delegate to specialized TOC parser which recursively processes navPoint elements
         // to build the complete navigation hierarchy with unlimited nesting depth
         tableOfContentsParser.parse(xmlElement)

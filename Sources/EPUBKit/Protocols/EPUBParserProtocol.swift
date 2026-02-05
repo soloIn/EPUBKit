@@ -62,3 +62,4 @@ public protocol EPUBParserProtocol where Self: EPUBParsable {
     /// - Throws: EPUBParserError for parsing failures, or other errors from underlying operations
     func parse(documentAt path: URL) throws -> EPUBDocument
 }
+

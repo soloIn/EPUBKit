@@ -41,3 +41,8 @@ public struct EPUBManifest {
     /// ```
     public var items: [String: EPUBManifestItem]
 }
+extension EPUBManifest {
+    var navItem: EPUBManifestItem? {
+        items.values.first { $0.id.contains("nav") == true }
+    }
+}
