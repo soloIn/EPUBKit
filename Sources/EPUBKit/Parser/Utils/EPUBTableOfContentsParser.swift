@@ -87,7 +87,7 @@ class EPUBTableOfContentsParserImplementation: EPUBTableOfContentsParser {
         // POTENTIAL BUG: The attribute name appears to have a typo - "dtb=uid" should be "dtb:uid"
         // This may cause identifier extraction to fail for properly formatted NCX files
         let item = xmlElement["head"]["meta"]
-            .all(withAttributes: ["name": "dtb=uid"])?
+            .all(withAttributes: ["name": "dtb:uid"])?
             .first?
             .attributes["content"]
 

@@ -49,6 +49,9 @@ public final class EPUBParser: EPUBParserProtocol {
 
     /// Parser for NCX table of contents.
     private let tableOfContentsParser: EPUBTableOfContentsParser
+    
+    /// Internal chapter standardizer for anchor-based multi-chapter HTML files.
+    private let chapterStandardizer: EPUBChapterStandardizer
 
     /// Optional delegate to receive parsing progress notifications.
     /// Set this before calling parse() to monitor the parsing process.
@@ -60,6 +63,7 @@ public final class EPUBParser: EPUBParserProtocol {
         manifestParser = EPUBManifestParserImplementation()
         spineParser = EPUBSpineParserImplementation()
         tableOfContentsParser = EPUBTableOfContentsParserImplementation()
+        chapterStandardizer = EPUBChapterStandardizer()
     }
 
     /// Parses an EPUB document at the specified URL.
@@ -133,9 +137,9 @@ public final class EPUBParser: EPUBParserProtocol {
             // 假设 EPUBManifestItem 有 properties 字段，或者我们需要遍历查找。
             // 由于我看不到 EPUBManifestItem 的定义，这里使用遍历 values 的方式。
             if let navItem = manifest.items.values.first(where: { item in
-                // 检查 properties 属性 (需要在 EPUBManifestParser/Item 中确保解析了这个属性)
-                // 如果 manifest item 没有 properties 属性，这里需要依赖 spine.toc
-                return item.id.contains("nav") == true
+                item.property?
+                    .split(separator: " ")
+                    .contains("nav") == true
             }) {
                 tocPath = navItem.path
             }
@@ -146,8 +150,15 @@ public final class EPUBParser: EPUBParserProtocol {
                     tocPath = item.path
                 }
             }
+            
+            // 3. 最后回退: 直接按 media-type 查找 NCX
+            if tocPath == nil {
+                tocPath = manifest.items.values.first(where: {
+                    $0.mediaType == .opf2
+                })?.path
+            }
 
-            // 3. 校验是否找到
+            // 4. 校验是否找到
             guard let finalTocPath = tocPath else {
                 throw EPUBParserError.tableOfContentsMissing
             }
@@ -161,6 +172,20 @@ public final class EPUBParser: EPUBParserProtocol {
 
             tableOfContents = getTableOfContents(from: tableOfContentsElement)
             delegate?.parser(self, didFinishParsing: tableOfContents)
+            
+            // STEP 5: Normalize anchor-split content files into chapter-per-file structure.
+            // Any failure here should not affect parse success: we fall back to original data.
+            if let normalized = try? chapterStandardizer.normalize(
+                contentDirectory: contentDirectory,
+                tocPath: finalTocPath,
+                manifest: manifest,
+                spine: spine,
+                tableOfContents: tableOfContents
+            ) {
+                manifest = normalized.manifest
+                spine = normalized.spine
+                tableOfContents = normalized.tableOfContents
+            }
         } catch let error {
             // CRITICAL: Always notify delegate of failures for proper error handling
             // This ensures that any cleanup or error reporting can be performed

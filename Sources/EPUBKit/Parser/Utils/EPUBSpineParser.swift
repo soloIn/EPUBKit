@@ -84,7 +84,7 @@ class EPUBSpineParserImplementation: EPUBSpineParser {
         // Parse page progression direction from spine attributes
         // Defaults to "ltr" (left-to-right) if not specified
         // This is crucial for proper display of RTL languages like Arabic or Hebrew
-        let direction = xmlElement["page-progression-direction"].value ?? "ltr"
+        let direction = xmlElement.attributes["page-progression-direction"] ?? "ltr"
         
         // Create and return the complete spine object
         return EPUBSpine(
