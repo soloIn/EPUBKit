@@ -14,7 +14,7 @@ struct EPUBNormalizationTests {
         let document = try EPUBParser().parse(documentAt: epubDirectory)
 
         #expect(document.spine.pageProgressionDirection == .rightToLeft)
-        #expect(document.spine.items.count == 5)
+        #expect(document.spine.items.count == 4)
 
         let chapterItems = document.manifest.items.values.filter { item in
             item.path.contains("chapter_") && item.mediaType == .xHTML
@@ -31,6 +31,8 @@ struct EPUBNormalizationTests {
         )
         #expect(!coverHTML.contains("<p>28</p>"))
         #expect(!coverHTML.contains("href=\"#p34\""))
+        
+        #expect(!tocContains(label: "Contents", in: document.tableOfContents))
 
         let chapter1Path = try tocItemPath(label: "Chapter 1", in: document.tableOfContents)
         let chapter1HTML = try String(
@@ -38,6 +40,7 @@ struct EPUBNormalizationTests {
             encoding: .utf8
         )
         #expect(chapter1HTML.contains("<img"))
+        #expect(chapter1HTML.localizedCaseInsensitiveContains("<h1 id=\"p10\">Chapter 1</h1>"))
     }
 
     @Test("TOC locator selection prefers nav over spine.toc NCX")
@@ -174,6 +177,7 @@ private extension EPUBNormalizationTests {
                     <nav epub:type="toc">
                       <ol>
                         <li><a href="Text/index_split_000.html#cover">Cover</a></li>
+                        <li><a href="Text/index_split_000.html#p7">Contents</a></li>
                         <li><a href="Text/index_split_000.html#p10">Chapter 1</a></li>
                         <li>
                           <a href="Text/index_split_000.html#p23">Chapter 2</a>
@@ -202,8 +206,13 @@ private extension EPUBNormalizationTests {
               </head>
               <body>
                 <p id="cover">Cover page</p>
+                <p><a id="p7"></a><b class="calibre4">Contents</b></p>
                 <p><a href="#p34">Ice Cream</a></p>
                 <p>28</p>
+                <p><a href="#p10">Down the Hill</a></p>
+                <p>4</p>
+                <p><a href="#p23">The Corner</a></p>
+                <p>17</p>
                 <h1 id="p10">Chapter 1</h1>
                 <p>Body paragraph<img src="img.png" alt="x"/></p>
                 <h1 id="p23">Chapter 2</h1>
@@ -252,5 +261,13 @@ private extension EPUBNormalizationTests {
         }
 
         throw NSError(domain: "EPUBNormalizationTests", code: 404)
+    }
+    
+    func tocContains(label: String, in toc: EPUBTableOfContents) -> Bool {
+        if toc.label == label {
+            return true
+        }
+        guard let children = toc.subTable else { return false }
+        return children.contains { tocContains(label: label, in: $0) }
     }
 }

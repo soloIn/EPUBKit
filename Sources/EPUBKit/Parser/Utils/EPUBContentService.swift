@@ -37,6 +37,12 @@ protocol EPUBContentService {
     /// Lists all resources in the publication as defined in EPUB specification
     /// Section 3.4.11.
     var manifest: AEXMLElement { get }
+
+    /// Optional EPUB2 guide element from the package document.
+    ///
+    /// Some EPUB2 books use `<guide><reference .../></guide>` to declare
+    /// structural entries such as cover/title-page/toc/copyright-page.
+    var guide: AEXMLElement? { get }
     
     /// Initializes the content service with the extracted EPUB directory.
     ///
@@ -111,6 +117,10 @@ class EPUBContentServiceImplementation: EPUBContentService {
     /// </manifest>
     /// ```
     var manifest: AEXMLElement { content.root["manifest"] }
+    
+    var guide: AEXMLElement? {
+        content.root["guide"].first
+    }
 
     /// Initializes the content service by locating and parsing the package document.
     ///

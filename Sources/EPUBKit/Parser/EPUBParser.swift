@@ -84,6 +84,7 @@ public final class EPUBParser: EPUBParserProtocol {
         var manifest: EPUBManifest
         var spine: EPUBSpine
         var tableOfContents: EPUBTableOfContents
+        var navPath: String?
 
         // Notify delegate that parsing has begun
         delegate?.parser(self, didBeginParsingDocumentAt: path)
@@ -142,6 +143,7 @@ public final class EPUBParser: EPUBParserProtocol {
                     .contains("nav") == true
             }) {
                 tocPath = navItem.path
+                navPath = navItem.path
             }
 
             // 2. 回退到 EPUB 2: 使用 spine 的 toc 属性查找 NCX
@@ -178,6 +180,8 @@ public final class EPUBParser: EPUBParserProtocol {
             if let normalized = try? chapterStandardizer.normalize(
                 contentDirectory: contentDirectory,
                 tocPath: finalTocPath,
+                navPath: navPath,
+                guideElement: contentService.guide,
                 manifest: manifest,
                 spine: spine,
                 tableOfContents: tableOfContents
